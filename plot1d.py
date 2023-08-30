@@ -18,7 +18,7 @@ mplstyle.use(['ggplot', 'fast'])
 def animate(i):
     global xcol, ycol, current_frame, xlim, ylim
     # print(f[i])
-    d = np.loadtxt(f[i]).T
+    d = data[i]
     x = d[ixcol]
     y = d[iycol]
     if not args.hst:
@@ -27,13 +27,16 @@ def animate(i):
             # terribly lazy but it works, maybe just use regex
             time = file.readline().split('=')[1].split(' ')[0]
     ax.clear()
-    if xlim:
+    '''if xlim:
         ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
+        ax.set_ylim(ylim)'''
     ax.plot(x, y, '.' if use_dot else '-')
-    if not xlim and args.fix: # just need to check one since its either both or none
+    '''if not xlim and args.fix: # just need to check one since its either both or none
         xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
+        ylim = ax.get_ylim()'''
+    if fix_axes:
+        ax.set_xlim(extrema[ixcol])
+        ax.set_ylim(extrema[iycol])
     if not args.hst:
         ax.set_title(f'Time: {float(time)}', loc='left')
     else:
@@ -99,7 +102,7 @@ def restart(self=None):
     global current_frame, xlim
     xlim = None
     pause()
-    current_frame=0
+    update_fslider(0)
     resume()
 
 # select the horizontal variable
@@ -160,6 +163,12 @@ def dotboxf(self):
     animate(current_frame)
     fig.canvas.draw_idle()
 
+def fix_axesf(self):
+    global fix_axes
+    fix_axes = not fix_axes
+    animate(current_frame)
+    fig.canvas.draw_idle()
+
 argparser = ArgumentParser(description='plots the athena tab files specified')
 argparser.add_argument('-d', '--dir', help='the athena run directory containing tab/ or *.tab files', required=True)
 argparser.add_argument('--hst', action='store_true', help='plots the hst file rather animating the tab files')
@@ -179,6 +188,7 @@ else:
         f = glob.glob(args.dir + '/*.tab')
 f.sort()
 length = len(f)
+print(length)
 #print('DEBUG: %s has %d files' % (fnames,len(f)))
 
 # global vars
@@ -190,6 +200,7 @@ frame_sliding = False
 xlim = None
 ylim = None
 use_dot = False
+fix_axes = False
 
 # plot settings
 left = 0.34
@@ -222,6 +233,22 @@ with open(f[0]) as file:
     print("tab variables detected:",variables)
 
 var_len = len(variables)
+var_range = range(var_len)
+
+data = []
+extrema = [(float('inf'), float('-inf'))] * var_len
+
+for file in f:
+    e = np.loadtxt(file).T
+    data.append(e)
+    for i in var_range:
+        minimum, maximum = extrema[i]
+        extrema[i] = (min(minimum, min(e[i])), max(maximum, max(e[i])))
+
+for i in var_range:
+    a, b = extrema[i]
+    buffer = 0.02 * abs(a - b)
+    extrema[i] = (a - buffer, b + buffer)
 
 # 0-based, change from animate2
 xcol=variables[0]
@@ -284,10 +311,15 @@ if not args.hst:
     bloop = Button(fig.add_axes([bstart + 2 * bwidth + 2 * bspace, 0.125, bwidth, bheight]), '$\u27F3$')
     bloop.on_clicked(loopf)
 
-    dotax = fig.add_axes([bstart + 3 * bwidth + 3 * bspace, 0.125, 0.2, bheight])
+    dotax = fig.add_axes([bstart + 4 * bwidth + 4 * bspace, 0.125, 0.2, bheight])
     dotbox = CheckButtons(dotax, ['Use points'])
     dotbox.on_clicked(dotboxf)
     dotax.set_facecolor('white')
+
+    fixax = fig.add_axes([bstart + 12 * bwidth + 12 * bspace, 0.125, 0.2, bheight])
+    fixbox = CheckButtons(fixax, ['Fix axes'])
+    fixbox.on_clicked(fix_axesf)
+    fixax.set_facecolor('white')
 
     # make slider nonlinear
     delay_slider = Slider(
@@ -367,7 +399,7 @@ if not args.hst:
     # in order to pause the animation when using the frame slider
     fig.canvas.mpl_connect('motion_notify_event', mouse_moved)
 else:
-    dotax = fig.add_axes([0.1, 0.125, 0.2, 0.05])
+    dotax = fig.add_axes([0.05, 0.125, 0.2, 0.05])
     dotbox = CheckButtons(dotax, ['Use points'])
     dotbox.on_clicked(dotboxf)
     dotax.set_facecolor('white')
