@@ -219,7 +219,7 @@ class MainWindow(qw.QMainWindow):
         for k in self.links:
             v = values[k] = values[self.links[k]]
             cmd += f'{k}={v} '
-        print(self.links)
+        #print(self.links)
         print(cmd)
         # create odir (including intermediaries if needed)
         odir = dirname
